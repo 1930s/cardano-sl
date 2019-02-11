@@ -7,6 +7,7 @@
 
 module Test.Pos.Chain.Block.BlockSpec
        ( spec
+       , spec2
        ) where
 
 import           Universum
@@ -67,6 +68,14 @@ spec = describe "Block properties" $ modifyMaxSuccess (min 20) $ do
         -> Bool
     emptyHeaderChain l pm =
         isVerSuccess $ Block.verifyHeaders pm Nothing l
+
+spec2 :: Spec
+spec2 = describe "BlockgenHeaderAndParams" $ modifyMaxSuccess (min 20) $ do
+    prop "vhpLeaders is not Nothing" $ \ pm -> forAll (hapParams <$> genHeaderAndParams pm) $ \ params ->
+        isNothing (Block.vhpLeaders params) === False
+
+    prop "Successfully verifies a correct main block header" validateGoodMainHeader
+
 
 -- | Both of the following tests are boilerplate - they use `mkGenericHeader` to create
 -- headers and then compare these with manually built headers.

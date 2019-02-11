@@ -420,7 +420,7 @@ genHeaderAndParams pm = do
         -- drop all all leaders of headers from previous epochs.
         thisEpochStartIndex = fromIntegral dummyEpochSlots *
                                 fromIntegral (header ^. Core.epochIndexL)
-        thisHeadersEpoch = drop thisEpochStartIndex leaders
+        thisHeadersEpoch = drop (min 0 thisEpochStartIndex) leaders
         -- A helper function. Given integers 'x' and 'y', it chooses a
         -- random integer in the interval [x, y]
         betweenXAndY :: Random a => a -> a -> a
