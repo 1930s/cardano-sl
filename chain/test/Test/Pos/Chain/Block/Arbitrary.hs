@@ -324,7 +324,7 @@ recursiveHeaderGen _ _ _ _ [] b = return b
 
 -- | Maximum start epoch in block header verification tests
 bhlMaxStartingEpoch :: Integral a => a
-bhlMaxStartingEpoch = 1000000
+bhlMaxStartingEpoch = 200
 
 -- | Amount of full epochs in block header verification tests
 bhlEpochs :: Integral a => a
@@ -393,8 +393,9 @@ generateBHL pm gHash createInitGenesis startSlot slotCount = BHL <$> do
 -- 'Pos.Types.Blocks.Functions.verifyHeader', the blockheaders that may be
 -- part of the verification parameters are guaranteed to be valid, as are the
 -- slot leaders and the current slot.
-newtype HeaderAndParams = HAndP
-    { getHAndP :: (Block.VerifyHeaderParams, Block.BlockHeader)
+data HeaderAndParams = HeaderAndParams
+    { hapParams :: Block.VerifyHeaderParams
+    , hapHeader :: Block.BlockHeader
     } deriving (Eq, Show)
 
 genHeaderAndParams :: ProtocolMagic -> Gen HeaderAndParams
@@ -454,11 +455,13 @@ genHeaderAndParams pm = do
         params = Block.VerifyHeaderParams
             { Block.vhpPrevHeader = prev
             , Block.vhpCurrentSlot = randomSlotBeforeThisHeader
-            , Block.vhpLeaders = nonEmpty $ map Core.addressHash thisHeadersEpoch
+            , Block.vhpLeaders =
+                    -- trace ("\n" <> show (Core.getSlotCount dummyEpochSlots, thisEpochStartIndex, thisHeadersEpoch) <> "\n" :: Text) .
+                    nonEmpty $ map Core.addressHash thisHeadersEpoch
             , Block.vhpMaxSize = Just (biSize header)
             , Block.vhpVerifyNoUnknown = not hasUnknownAttributes
             }
-    return . HAndP $ (params, header)
+    return $ HeaderAndParams params header
 
 -- | A lot of the work to generate a valid sequence of blockheaders has
 -- already been done in the 'Arbitrary' instance of the 'BlockHeaderList'

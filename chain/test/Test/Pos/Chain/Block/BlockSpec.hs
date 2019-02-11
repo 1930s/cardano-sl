@@ -11,10 +11,10 @@ module Test.Pos.Chain.Block.BlockSpec
 
 import           Universum
 
-import           Serokell.Util (isVerSuccess)
+import           Serokell.Util (VerificationRes (..), isVerSuccess)
 import           Test.Hspec (Spec, describe)
 import           Test.Hspec.QuickCheck (modifyMaxSuccess, prop)
-import           Test.QuickCheck (Gen, Property, (===), (==>))
+import           Test.QuickCheck (Property, counterexample, forAll, (===), (==>))
 
 import           Pos.Chain.Block (BlockHeader (..), BlockSignature (..),
                      GenesisBody (..), GenesisConsensusData (..),
@@ -154,23 +154,34 @@ mainHeaderFormation pm prevHeader slotId signer body extra =
 -- GenesisBlock ∪ MainBlock
 ----------------------------------------------------------------------------
 
-validateGoodMainHeader :: ProtocolMagic -> Gen Bool
-validateGoodMainHeader pm = do
-    (params, header) <- BT.getHAndP <$> BT.genHeaderAndParams pm
-    pure $ isVerSuccess $ Block.verifyHeader pm params header
+validateGoodMainHeader :: ProtocolMagic -> Property
+validateGoodMainHeader pm =
+    forAll (BT.genHeaderAndParams pm) $ \ hap ->
+        Block.verifyHeader pm (hapParams hap) (hapHeader hap) === VerSuccess
 
 -- FIXME should sharpen this test to ensure that it fails with the expected
 -- reason.
-validateBadProtocolMagicMainHeader :: ProtocolMagic -> Gen Bool
-validateBadProtocolMagicMainHeader pm = do
-    (params, header) <- BT.getHAndP <$> BT.genHeaderAndParams pm
-    let protocolMagicId' = ProtocolMagicId (getProtocolMagic pm + 1)
-        header' = case header of
-            BlockHeaderGenesis h -> BlockHeaderGenesis (h & gbhProtocolMagicId .~ protocolMagicId')
-            BlockHeaderMain h    -> BlockHeaderMain    (h & gbhProtocolMagicId .~ protocolMagicId')
-    pure $ not $ isVerSuccess $ Block.verifyHeader pm params header'
+validateBadProtocolMagicMainHeader :: ProtocolMagic -> Property
+validateBadProtocolMagicMainHeader pm =
+    forAll (BT.genHeaderAndParams pm) $ \ hap -> do
+        let protocolMagicId' = ProtocolMagicId (getProtocolMagic pm + 1)
+            header' = case hapHeader hap of
+                        BlockHeaderGenesis h -> BlockHeaderGenesis (h & gbhProtocolMagicId .~ protocolMagicId')
+                        BlockHeaderMain h    -> BlockHeaderMain    (h & gbhProtocolMagicId .~ protocolMagicId')
+        Block.verifyHeader pm (hapParams hap) header' =/= VerSuccess
 
-validateGoodHeaderChain :: ProtocolMagic -> Gen Bool
-validateGoodHeaderChain pm = do
-    BT.BHL (l, _) <- BT.genStubbedBHL pm
-    pure $ isVerSuccess $ Block.verifyHeaders pm Nothing (NewestFirst l)
+-- Cargo cult this from QuickCheck because the version we are using
+-- doesn't have this operator.
+infix 4 =/=
+(=/=) :: (Eq a, Show a) => a -> a -> Property
+x =/= y =
+  counterexample (show x ++ interpret res ++ show y) res
+  where
+    res = x /= y
+    interpret True  = " /= "
+    interpret False = " == "
+
+validateGoodHeaderChain :: ProtocolMagic -> Property
+validateGoodHeaderChain pm =
+    forAll (BT.genStubbedBHL pm) $ \ (BT.BHL (l, _)) ->
+        Block.verifyHeaders pm Nothing (NewestFirst l) === VerSuccess
